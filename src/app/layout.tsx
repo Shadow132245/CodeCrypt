@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CodeCrypt - Universal Code Decompiler & Deobfuscator",
+  title: "CodeCrypt - Universal Code Encryptor & Decompiler",
   description:
-    "Decompile, deobfuscate, and analyze code from 10+ programming languages with automatic language detection",
+    "Encrypt, decrypt, deobfuscate, and beautify code from 10+ programming languages with language-specific algorithms and automatic language detection",
 };
 
 export default function RootLayout({
