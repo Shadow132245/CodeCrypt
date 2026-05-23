@@ -11,6 +11,7 @@ import { deobfuscateJavaScript, DeobfuscationResult } from "@/lib/deobfuscate";
 import { formatCode, estimateComplexity } from "@/lib/utils";
 import {
   EncryptorMode,
+  encryptorRegistry,
   getEncryptorsForLanguage,
   getEncryptorById,
 } from "@/lib/encryptors";
@@ -43,14 +44,15 @@ export default function Home() {
     ? getEncryptorsForLanguage(targetLangId)
     : [];
 
-  // Reset algorithm selection when language or mode changes
+  // Reset algorithm when mode or language changes
   useEffect(() => {
     if (mode === "decrypt") {
       setSelectedAlgorithm("");
-    } else if (availableAlgorithms.length > 0 && !selectedAlgorithm) {
+    } else if (availableAlgorithms.length > 0) {
       setSelectedAlgorithm(availableAlgorithms[0].id);
     }
-  }, [mode, targetLangId, availableAlgorithms.length, selectedAlgorithm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, targetLangId]);
 
   const processCode = useCallback(
     (codeToProcess: string, langOverride?: string, encMode?: Mode, algoId?: string) => {
@@ -71,35 +73,57 @@ export default function Home() {
       if (encMode === "encrypt" && algoId) {
         const algo = getEncryptorById(targetLang, algoId);
         if (algo) {
-          finalOutput = algo.encrypt(codeToProcess);
-          allTransformations.push(`Encrypted using ${algo.name}`);
+          try {
+            finalOutput = algo.encrypt(codeToProcess);
+            allTransformations.push("Encrypted using " + algo.name);
+          } catch (e) {
+            allTransformations.push("Encryption failed: " + (e as Error).message);
+          }
         }
       } else {
-        let deobfResult: DeobfuscationResult | null = null;
-
+        // Try JS-specific deobfuscation first
         if (targetLang === "javascript" || targetLang === "typescript") {
-          deobfResult = deobfuscateJavaScript(codeToProcess);
-          allTransformations.push(...deobfResult.transformations);
-          finalOutput = deobfResult.output;
+          try {
+            const deobfResult = deobfuscateJavaScript(codeToProcess);
+            allTransformations.push(...deobfResult.transformations);
+            if (deobfResult.output !== codeToProcess) {
+              finalOutput = deobfResult.output;
+            }
+          } catch { /* skip */ }
         }
 
-        // Try all decrypt algorithms for the detected language
+        // Try decrypt algos for the detected language
         const langAlgos = getEncryptorsForLanguage(targetLang);
         for (const algo of langAlgos) {
           try {
             const decrypted = algo.decrypt(finalOutput);
             if (decrypted !== finalOutput) {
-              allTransformations.push(`Decrypted using ${algo.name}`);
+              allTransformations.push("Decrypted using " + algo.name);
               finalOutput = decrypted;
             }
-          } catch {
-            // skip if decrypt fails
+          } catch { /* skip */ }
+        }
+
+        // Try decrypt algos for ALL languages if nothing changed
+        if (allTransformations.length === 0 || finalOutput === codeToProcess) {
+          for (const langId of Object.keys(encryptorRegistry)) {
+            if (langId === targetLang) continue;
+            const algos = getEncryptorsForLanguage(langId);
+            for (const algo of algos) {
+              try {
+                const decrypted = algo.decrypt(finalOutput);
+                if (decrypted !== finalOutput) {
+                  allTransformations.push("Decrypted using " + algo.name + " (" + langId + ")");
+                  finalOutput = decrypted;
+                }
+              } catch { /* skip */ }
+            }
           }
         }
 
         const formatted = formatCode(finalOutput, targetLang);
         if (formatted !== finalOutput) {
-          allTransformations.push(`Formatted code for ${targetLang}`);
+          allTransformations.push("Formatted code for " + targetLang);
           finalOutput = formatted;
         }
       }
@@ -196,7 +220,7 @@ export default function Home() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8 text-center relative">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm mb-6 animate-scale-in">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
             {t("v1.0 — 10 languages supported", "الإصدار 1.0 — يدعم 10 لغات")}
           </div>
@@ -213,7 +237,7 @@ export default function Home() {
           </p>
 
           {/* Stats */}
-          <div className="flex items-center justify-center gap-8 text-sm text-gray-500">
+          <div className="flex items-center justify-center gap-8 text-sm text-gray-500 animate-slide-up">
             <div className="flex items-center gap-2">
               <span className="text-blue-400 font-bold text-lg">10+</span>
               <span>{t("Languages", "لغات")}</span>
@@ -222,6 +246,11 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <span className="text-blue-400 font-bold text-lg">Auto</span>
               <span>{t("Detection", "كشف تلقائي")}</span>
+            </div>
+            <div className="w-px h-8 bg-gray-800" />
+            <div className="flex items-center gap-2">
+              <span className="text-blue-400 font-bold text-lg">Encrypt</span>
+              <span>{t("Encrypt & Decrypt", "تشفير وفك")}</span>
             </div>
             <div className="w-px h-8 bg-gray-800" />
             <div className="flex items-center gap-2">
@@ -365,7 +394,7 @@ export default function Home() {
                   : t("Output will appear here", "الناتج سيظهر هنا")}
               </h3>
               {transformations.length > 0 && (
-                <span className="text-xs text-green-400">
+                <span className="text-xs text-green-400 animate-breathe">
                   {transformations.length} {t("transformations", "تحويل")}
                 </span>
               )}
@@ -409,10 +438,11 @@ export default function Home() {
           </p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {languages.map((langInfo) => (
+          {languages.map((langInfo, i) => (
             <div
               key={langInfo.id}
-              className="group relative overflow-hidden rounded-xl p-5 bg-gray-800/20 border border-gray-800/50 hover:border-gray-700/50 transition-all hover:bg-gray-800/30"
+              className="group relative overflow-hidden rounded-xl p-5 bg-gray-800/20 border border-gray-800/50 hover:border-gray-700/50 transition-all hover:bg-gray-800/30 card-lift"
+              style={{ animationDelay: i * 50 + "ms" }}
             >
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity"
@@ -450,7 +480,7 @@ export default function Home() {
       {/* Features */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="rounded-xl p-6 bg-gradient-to-br from-blue-500/5 to-transparent border border-blue-500/10">
+          <div className="rounded-xl p-6 bg-gradient-to-br from-blue-500/5 to-transparent border border-blue-500/10 card-lift">
             <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4">
               <span className="text-2xl">🧠</span>
             </div>
@@ -465,7 +495,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-xl p-6 bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10">
+          <div className="rounded-xl p-6 bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10 card-lift">
             <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center mb-4">
               <span className="text-2xl">🔐</span>
             </div>
@@ -480,7 +510,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-xl p-6 bg-gradient-to-br from-green-500/5 to-transparent border border-green-500/10">
+          <div className="rounded-xl p-6 bg-gradient-to-br from-green-500/5 to-transparent border border-green-500/10 card-lift">
             <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center mb-4">
               <span className="text-2xl">✨</span>
             </div>
@@ -515,7 +545,8 @@ export default function Home() {
             <button
               key={i}
               onClick={() => setCode(example.code)}
-              className="text-left group relative overflow-hidden rounded-xl p-4 bg-gray-800/20 border border-gray-800/50 hover:border-blue-500/30 transition-all hover:bg-gray-800/40"
+              className="text-left group relative overflow-hidden rounded-xl p-4 bg-gray-800/20 border border-gray-800/50 hover:border-blue-500/30 transition-all hover:bg-gray-800/40 card-lift"
+              style={{ animationDelay: i * 80 + "ms" }}
             >
               <div className="flex items-center gap-2 mb-2">
                 <span>{example.icon}</span>
