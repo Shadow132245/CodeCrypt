@@ -244,7 +244,7 @@ export default function Home() {
                 : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-200"
             }`}
           >
-            <span className="mr-1">🤖</span>
+            <span className="me-1">🤖</span>
             {t("Auto Detect", "كشف تلقائي")}
           </button>
           {languages.map((langInfo) => (
