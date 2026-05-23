@@ -172,7 +172,7 @@ export default function Home() {
 
             <div className="flex items-center gap-4">
               <a
-                href="https://github.com"
+                href="https://github.com/Shadow132245/CodeCrypt"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-white transition-colors"
