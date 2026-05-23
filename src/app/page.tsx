@@ -294,6 +294,10 @@ export default function Home() {
               <select
                 value={selectedAlgorithm}
                 onChange={(e) => setSelectedAlgorithm(e.target.value)}
+                title={t(
+                  availableAlgorithms.find(a => a.id === selectedAlgorithm)?.description || "",
+                  availableAlgorithms.find(a => a.id === selectedAlgorithm)?.descriptionAr || ""
+                )}
                 className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               >
                 {availableAlgorithms.map((algo) => (
@@ -315,25 +319,12 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Editor */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <DetectionCard detection={detection} isRtl={isRtl} />
-              </div>
-              <div className="flex items-center gap-2">
-                {mode === "encrypt" && selectedAlgorithm && targetLangId && (
-                  <span className="text-xs text-gray-500 max-w-[200px] truncate" title={t(
-                    availableAlgorithms.find(a => a.id === selectedAlgorithm)?.description || "",
-                    availableAlgorithms.find(a => a.id === selectedAlgorithm)?.descriptionAr || ""
-                  )}>
-                    {t(
-                      availableAlgorithms.find(a => a.id === selectedAlgorithm)?.description || "",
-                      availableAlgorithms.find(a => a.id === selectedAlgorithm)?.descriptionAr || ""
-                    )}
-                  </span>
-                )}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <DetectionCard detection={detection} isRtl={isRtl} />
+              <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                 {code && (
                   <>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 whitespace-nowrap">
                       {code.length} {t("chars", "حرف")} · {complexity} {t("complexity", "تعقيد")}
                     </span>
                     <button
